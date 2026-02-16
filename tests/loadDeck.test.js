@@ -16,13 +16,12 @@ describe('loadDeck', () => {
   it('resolves a { suits[4], values[13] } deck', async () => {
     const deck = await loadDeck()
 
-    expect(typeof deck).toBe('object')
-
-    expect(deck).toHaveProperty('suits')
-    expect(deck).toHaveProperty('values')
-
-    expect(Array.isArray(deck.suits)).toBe(true)
-    expect(Array.isArray(deck.values)).toBe(true)
+    expect(deck).toEqual(
+      expect.objectContaining({
+        suits: expect.any(Array),
+        values: expect.any(Array),
+      })
+    )
 
     expect(deck.suits).toHaveLength(4)
     expect(deck.values).toHaveLength(13)
