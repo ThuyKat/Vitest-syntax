@@ -27,14 +27,20 @@ npm test
 ### 1. Basic Matchers
 | Matcher | Description |
 |---------|-------------|
-| [`toBe`](#tobe) | Strict equality (`===`) |
-| [`toEqual`](#toequal) | Deep equality for objects/arrays |
+| [`toBe`](#tobe) | Strict equality (`===`) for primitives |
+| [`toEqual`](#toequal) | Deep equality for objects/arrays (reference types) |
+| [`toBeTruthy`](#tobetruthy) | Check value is truthy |
+| [`toBeFalsy`](#tobefalsy) | Check value is falsy |
 | [`toBeTypeOf`](#tobetypeof) | Check the type of a value |
 | [`toHaveLength`](#tohavelength) | Check array or string length |
 | [`toHaveProperty`](#tohaveproperty) | Check if object has a property |
 | [`toBeDefined`](#tobedefined) | Check value is not `undefined` |
 | [`toBeInstanceOf`](#tobeinstanceof) | Check if value is instance of a class |
 | [`toBeLessThan`](#tobelessthan) | Numeric comparison |
+| [`toContain`](#tocontain) | Check if array/string contains a value |
+| [`.not`](#not) | Negate any matcher |
+| [`Array.isArray().toBe()`](#arrayisarraytobe) | Check if a value is an array |
+| [`toEqual` + `expect.objectContaining`](#toequal--expectobjectcontaining) | Partial deep match on objects |
 | [`toThrow`](#tothrow) | Assert a function throws an error |
 | [`it.each`](#iteach) | Run the same test with different data |
 | [`expect.objectContaining`](#expectobjectcontaining) | Partial object matching |
@@ -48,18 +54,22 @@ npm test
 | [`rejects`](#rejects) | Assert a promise rejects |
 
 ### 3. Mocks
-| API | Description |
-|-----|-------------|
+| API / Matcher | Description |
+|---------------|-------------|
 | [`vi.mock`](#vimock) | Mock an entire module |
 | [`vi.importActual`](#viimportactual) | Import the real module inside a mock |
+| [`vi.fn`](#vifn) | Create a mock function |
+| [`mockClear`](#mockclear) | Reset call and return tracking |
+| [`toHaveBeenCalledTimes`](#tohavebeencalledtimes) | Assert how many times a mock was called |
+| [`toHaveReturnedWith`](#tohavereturnedwith) | Assert what a mock returned |
 
 ### 4. Spies
 | API / Matcher | Description |
 |---------------|-------------|
-| [`vi.fn`](#vifn) | Create a mock/spy function |
-| [`mockClear`](#mockclear) | Reset call and return tracking |
-| [`toHaveBeenCalledTimes`](#tohavebeencalledtimes) | Assert how many times a spy was called |
-| [`toHaveReturnedWith`](#tohavereturnedwith) | Assert what a spy returned |
+| [`vi.spyOn`](#vispyon) | Spy on a method of an existing module/object |
+| [`toHaveBeenCalledWith`](#tohavebeencalledwith) | Assert what arguments a spy was called with |
+| [`.mock.results`](#mockresults) | Access return values from spy calls |
+| [`.mock.invocationCallOrder`](#mockinvocationcallorder) | Check the order spies were called in |
 
 ---
 
@@ -81,9 +91,13 @@ expect(isPrime(4)).toBe(false)
 
 ### `toEqual`
 
-Checks deep equality. Use for comparing objects and arrays where reference identity doesn't matter.
+Checks deep equality. Use for comparing **reference types** (objects, arrays) where reference identity doesn't matter. Unlike `toBe` which uses `===` (same reference in memory), `toEqual` recursively compares all properties/elements by value.
 
 ```js
+// toBe fails for reference types even with identical content:
+// { a: 1 } === { a: 1 }  // false (different references)
+
+// toEqual compares by value instead:
 const deck = await loadDeck()
 
 expect(deck).toEqual(
@@ -94,7 +108,35 @@ expect(deck).toEqual(
 )
 ```
 
+> **Note:** Use `toBe` for primitives (strings, numbers, booleans). Use `toEqual` for objects and arrays.
+
 > **File:** `tests/loadDeck.test.js`
+
+---
+
+### `toBeTruthy`
+
+Asserts a value is truthy (i.e. evaluates to `true` in a boolean context). In JavaScript, everything is truthy except `false`, `0`, `""`, `null`, `undefined`, and `NaN`.
+
+```js
+expect(1).toBeTruthy()
+expect('hello').toBeTruthy()
+expect([]).toBeTruthy()        // empty array is truthy
+expect({}).toBeTruthy()        // empty object is truthy
+```
+
+---
+
+### `toBeFalsy`
+
+Asserts a value is falsy (i.e. evaluates to `false` in a boolean context). Falsy values: `false`, `0`, `""`, `null`, `undefined`, `NaN`.
+
+```js
+expect(0).toBeFalsy()
+expect('').toBeFalsy()
+expect(null).toBeFalsy()
+expect(undefined).toBeFalsy()
+```
 
 ---
 
@@ -178,6 +220,85 @@ expect(samePositions.length).toBeLessThan(52)
 ```
 
 > **File:** `tests/shuffle.test.js`
+
+---
+
+### `toContain`
+
+Checks if an array contains a specific item or if a string contains a substring.
+
+```js
+const suits = ['Hearts', 'Diamonds', 'Clubs', 'Spades']
+
+expect(suits).toContain('Hearts')
+expect(suits).toContain('Spades')
+
+// also works with strings
+expect('Hello World').toContain('World')
+```
+
+---
+
+### `.not`
+
+Negates any matcher by chaining `.not` before it. Works with every matcher.
+
+```js
+// .not.toContain - assert an item is NOT in the array
+const suits = ['Hearts', 'Diamonds', 'Clubs', 'Spades']
+expect(suits).not.toContain('Joker')
+
+// .not.toBe
+expect(isPrime(4)).not.toBe(true)
+
+// .not.toEqual
+expect({ a: 1 }).not.toEqual({ a: 2 })
+
+// .not.toBeDefined
+expect(undefined).not.toBeDefined()
+```
+
+---
+
+### `Array.isArray().toBe()`
+
+A pattern that uses JavaScript's built-in `Array.isArray()` inside `expect` to check if a value is an array. Useful when you need to explicitly verify the return type is an array, not just any object.
+
+```js
+const cards = createCards({ suits, values })
+
+// wrap Array.isArray() in expect, then match with toBe
+expect(Array.isArray(cards)).toBe(true)
+```
+
+> **Note:** This is a common pattern rather than a Vitest-specific matcher. An alternative is `expect(cards).toBeInstanceOf(Array)`.
+
+> **File:** `tests/createCards.test.js`
+
+---
+
+### `toEqual` + `expect.objectContaining`
+
+A powerful combination for asserting that an object **partially matches** a given shape. `toEqual` performs deep comparison, while `expect.objectContaining` allows extra properties to exist without failing. Nest `expect.any()` inside to match by type rather than exact value.
+
+```js
+const deck = await loadDeck()
+
+// assert deck has suits (any array) and values (any array)
+// without caring about the exact contents
+expect(deck).toEqual(
+  expect.objectContaining({
+    suits: expect.any(Array),
+    values: expect.any(Array),
+  })
+)
+```
+
+> **When to use which:**
+> - `toEqual({ ... })` - object must match **exactly** (no extra properties allowed)
+> - `toEqual(expect.objectContaining({ ... }))` - object must have **at least** these properties (extra properties are OK)
+
+> **File:** `tests/loadDeck.test.js`
 
 ---
 
@@ -354,16 +475,21 @@ vi.mock('../src/helpers/loggers', async () => {
 
 ---
 
-## 4. Spies
-
 ### `vi.fn`
 
-Creates a mock function (spy) that records calls, arguments, and return values.
+Creates a mock function that records calls, arguments, and return values. Used inside `vi.mock` to replace module exports.
 
 ```js
-const mockLogger = vi.fn(() => {
-  console.log('mock called')
-  return true
+vi.mock('../src/helpers/loggers', async () => {
+  const originals = await vi.importActual('../src/helpers/loggers')
+
+  return {
+    ...originals,
+    logDealRound: vi.fn(() => {
+      console.log('logDealRound mock fn called')
+      return true
+    }),
+  }
 })
 ```
 
@@ -389,7 +515,7 @@ expect(logDealRound).toHaveBeenCalledTimes(5)
 
 ### `toHaveBeenCalledTimes`
 
-Asserts how many times a mock/spy function was called.
+Asserts how many times a mock function was called.
 
 ```js
 deal(cards, 5, 3) // 5 rounds of dealing
@@ -403,10 +529,97 @@ expect(logDealRound).toHaveBeenCalledTimes(5)
 
 ### `toHaveReturnedWith`
 
-Asserts that a mock/spy returned a specific value at least once.
+Asserts that a mock function returned a specific value at least once.
 
 ```js
 expect(logDealRound).toHaveReturnedWith(true)
 ```
 
 > **File:** `tests/deal.test.js`
+
+---
+
+## 4. Spies
+
+### `vi.spyOn`
+
+Wraps an existing method on a module or object so you can track calls without replacing the implementation. Unlike `vi.fn` (which creates a new function), `vi.spyOn` watches a real function.
+
+```js
+import { vi } from 'vitest'
+import * as loggers from '../src/helpers/loggers'
+
+// spy on the real function - it still runs, but calls are tracked
+const spy = vi.spyOn(loggers, 'logDealRound')
+
+deal(cards, 5, 3)
+
+expect(spy).toHaveBeenCalledTimes(5)
+
+// optionally override the implementation
+spy.mockImplementation(() => 'mocked')
+```
+
+> **Note:** Use `vi.spyOn(module, 'methodName')` when you want to observe a real function. Use `vi.fn()` when you want to replace it entirely.
+
+---
+
+### `toHaveBeenCalledWith`
+
+Asserts that a spy/mock was called with specific arguments at least once.
+
+```js
+const spy = vi.spyOn(loggers, 'logDealRound')
+
+deal(cards, 5, 3)
+
+// check it was called with the hands array and round number 1
+expect(spy).toHaveBeenCalledWith(
+  expect.any(Array),  // hands
+  1                   // first round
+)
+```
+
+---
+
+### `.mock.results`
+
+Every spy/mock has a `.mock.results` array that records the return value of each call. Each entry has `{ type, value }`.
+
+```js
+const spy = vi.spyOn(loggers, 'logDealRound')
+
+deal(cards, 5, 3)
+
+// access the return value of the first call
+const firstReturn = spy.mock.results[0].value
+
+// access all return values
+spy.mock.results.forEach(result => {
+  console.log(result.value)
+})
+```
+
+> **Note:** `result.type` is `'return'` for normal returns or `'throw'` for exceptions.
+
+---
+
+### `.mock.invocationCallOrder`
+
+Tracks the global order in which spies/mocks were called. Useful when testing that multiple spies are called in the correct sequence.
+
+```js
+const spyA = vi.spyOn(moduleA, 'funcA')
+const spyB = vi.spyOn(moduleB, 'funcB')
+
+doSomething()
+
+// each spy records its call order number(s)
+// lower number = called first
+console.log(spyA.mock.invocationCallOrder) // e.g. [1, 3]
+console.log(spyB.mock.invocationCallOrder) // e.g. [2, 4]
+
+// assert spyA was called before spyB
+expect(spyA.mock.invocationCallOrder[0])
+  .toBeLessThan(spyB.mock.invocationCallOrder[0])
+```
